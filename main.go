@@ -51,7 +51,7 @@ func handleConn(c *net.TCPConn) {
 		return
 	}
 
-	realv4Addr := net.IP(tc.IP[4:])
+	realv4Addr := net.IP(tc.IP[12:16])
 
 	log.Printf("Connection from %s to %s:%d",
 		c.RemoteAddr().String(), realv4Addr.To4().String(), tc.Port)
