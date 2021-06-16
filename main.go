@@ -29,7 +29,7 @@ func main() {
 			if failurecount != 50 {
 				failurecount++
 			} else {
-				log.Printf("Unable to accept connection! %s", err.Error())
+				log.Fatalf("Unable to accept connection! %s", err.Error())
 			}
 			time.Sleep(time.Millisecond * time.Duration(failurecount*10))
 			continue
@@ -58,7 +58,7 @@ func handleConn(c *net.TCPConn) {
 
 	ipv4Conn, err := netx.DialTimeout("tcp", net.JoinHostPort(realv4Addr.To4().String(), fmt.Sprint(tc.Port)), time.Second*5)
 	if err != nil {
-		log.Printf("Tor conncetion error %s", err.Error())
+		log.Printf("Failed to connect to final target %s", err.Error())
 		return
 	}
 	defer ipv4Conn.Close()
