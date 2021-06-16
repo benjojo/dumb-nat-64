@@ -1,15 +1,13 @@
 package main
 
 import (
-	"encoding/base32"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"time"
 
-	"golang.org/x/net/proxy"
+	"github.com/getlantern/netx"
 )
 
 func main() {
@@ -53,108 +51,17 @@ func handleConn(c *net.TCPConn) {
 		return
 	}
 
-	toraddr := tc.IP[6:]
-	toronionaddr :=
-		fmt.Sprintf("%s.onion", base32.StdEncoding.EncodeToString(toraddr))
-
-	if !isAllowedPort(tc.Port) {
-		log.Printf("Disallowed connection from %s to %s:%d due to port block",
-			c.RemoteAddr().String(), toronionaddr, tc.Port)
-		return
-	}
+	realv4Addr := net.IP(tc.IP[4:])
 
 	log.Printf("Connection from %s to %s:%d",
-		c.RemoteAddr().String(), toronionaddr, tc.Port)
+		c.RemoteAddr().String(), realv4Addr.To4().String(), tc.Port)
 
-	d, err := proxy.SOCKS5("tcp", "localhost:9050", nil, proxy.Direct)
-	if err != nil {
-		log.Printf("Unable to recover address %s", err.Error())
-		return
-	}
-
-	torconn, err := d.Dial("tcp", fmt.Sprintf("%s:%d", toronionaddr, tc.Port))
+	ipv4Conn, err := netx.DialTimeout("tcp", net.JoinHostPort(realv4Addr.To4().String(), fmt.Sprint(tc.Port)), time.Second*5)
 	if err != nil {
 		log.Printf("Tor conncetion error %s", err.Error())
 		return
 	}
+	defer ipv4Conn.Close()
 
-	go io.Copy(torconn, fd)
-	io.Copy(fd, torconn)
-}
-
-// nicked from https://src.chromium.org/viewvc/chrome/trunk/src/net/base/net_util.cc
-var allowedPorts = []int{
-	1,    // tcpmux
-	7,    // echo
-	9,    // discard
-	11,   // systat
-	13,   // daytime
-	15,   // netstat
-	17,   // qotd
-	19,   // chargen
-	20,   // ftp data
-	21,   // ftp access
-	22,   // ssh
-	23,   // telnet
-	25,   // smtp
-	37,   // time
-	42,   // name
-	43,   // nicname
-	53,   // domain
-	77,   // priv-rjs
-	79,   // finger
-	87,   // ttylink
-	95,   // supdup
-	101,  // hostriame
-	102,  // iso-tsap
-	103,  // gppitnp
-	104,  // acr-nema
-	109,  // pop2
-	110,  // pop3
-	111,  // sunrpc
-	113,  // auth
-	115,  // sftp
-	117,  // uucp-path
-	119,  // nntp
-	123,  // NTP
-	135,  // loc-srv /epmap
-	139,  // netbios
-	143,  // imap2
-	179,  // BGP
-	389,  // ldap
-	465,  // smtp+ssl
-	512,  // print / exec
-	513,  // login
-	514,  // shell
-	515,  // printer
-	526,  // tempo
-	530,  // courier
-	531,  // chat
-	532,  // netnews
-	540,  // uucp
-	556,  // remotefs
-	563,  // nntp+ssl
-	587,  // stmp?
-	601,  // ??
-	636,  // ldap+ssl
-	993,  // ldap+ssl
-	995,  // pop3+ssl
-	2049, // nfs
-	3659, // apple-sasl / PasswordServer
-	4045, // lockd
-	6000, // X11
-	6665, // Alternate IRC [Apple addition]
-	6666, // Alternate IRC [Apple addition]
-	6667, // Standard IRC [Apple addition]
-	6668, // Alternate IRC [Apple addition]
-	6669, // Alternate IRC [Apple addition]
-}
-
-func isAllowedPort(port int) bool {
-	for _, good := range allowedPorts {
-		if port == good {
-			return true
-		}
-	}
-	return false
+	netx.BidiCopy(c, ipv4Conn, make([]byte, 32768), make([]byte, 32768))
 }
