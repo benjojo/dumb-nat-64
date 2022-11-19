@@ -6,10 +6,11 @@ People talk of many ways of doing NAT64, I have a stupid way of doing it for low
 
 This NAT64+DNS64 trick only works for TCP services only, but also given that most corp networks look like that anyway. this should be fine.
 
-The core of this service is the dumb-nat-64 binary, that neets a iptables redirect inside.
+The core of this service is the dumb-nat-64 binary, that neets a iptables tproxy inside and the used prefix to be assigned to an interface.
 
 ```
-ip6tables -A PREROUTING -d 3000::/96 -i eth0 -p tcp -j REDIRECT --to-ports 1337
+ip6tables -t mangle -A PREROUTING -d 3000::/96 -i eth0 -p tcp -j TPROXY --on-port=1337 --on-ip=::1
+ip route add local 3000::/96 dev lo
 ```
 
 and root (I think??). After that you can just install it as a systemd service.
